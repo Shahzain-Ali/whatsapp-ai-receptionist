@@ -14,5 +14,16 @@ uvicorn               # ASGI server that runs the webhook app
 gspread               # read/write the Availability + Bookings tabs
 google-auth           # service-account auth for Google Sheets
 
+# --- Production tracing (OpenTelemetry -> Langfuse) ---
+# opentelemetry-api/-sdk already arrive with google-adk; only the OTLP exporter is
+# missing. ADK emits GenAI spans from its Runner but drops them unless a provider
+# is registered — see whatsapp_webhook/main.py:_setup_tracing().
+#
+# PIN THIS. google-adk 2.2.0 requires opentelemetry-api/-sdk >=1.36,<=1.41.1, and it
+# does NOT constrain the exporter. Installing the exporter unpinned resolves to the
+# newest OTel (1.44.x) and DOWNGRADE-BREAKS that ceiling by upgrading api/sdk with it.
+# Pinned to match, the install is purely additive — nothing is uninstalled.
+opentelemetry-exporter-otlp-proto-http==1.41.1
+
 # --- Config ---
-python-dotenv         # loads API keys / IDs from .env (local); Cloud Run injects env vars
+python-dotenv         # loads API keys / IDs from .env (local); the host injects env vars

@@ -54,16 +54,30 @@ Meta Developer → your app → WhatsApp → **Configuration** → Webhook → *
 
 ## 4. Test it live
 
-1. From your **customer** phone, message the business number:
-   *"What's the rate for a blood test?"* → AI replies from the knowledge base.
-2. Send: *"Book me an appointment tomorrow 5 PM, my name is Ali."*
-   → AI says it's confirming with the team.
-   → The **owner** phone gets: `🔔 New booking request #1 … Reply YES 1 / NO 1`.
-3. From the **owner** phone reply **`YES 1`**.
-   → The **customer** phone gets: `✅ … appointment … confirmed`.
-   (Reply `NO 1` instead → customer is told the slot isn't available.)
+> **Which flow runs depends on `REQUIRE_APPROVAL`** (`whatsapp_fte/webhook_agent.py:40`).
+> The default is **`false` → auto-confirm**: the AI validates the slot, writes the confirmed
+> booking to the sheet, and confirms the customer itself — the owner phone is not involved.
+> The owner-approval steps below apply only when `REQUIRE_APPROVAL=true`.
 
-That's the full loop: real inbound → AI brain → cross-channel human approval → real reply.
+### 4a. Default — auto-confirm (`REQUIRE_APPROVAL` unset or `false`)
+
+1. From your **customer** phone, message the business number:
+   *"What are your timings?"* → AI replies from the knowledge base.
+2. Send: *"Book me an appointment tomorrow 5 PM, my name is Ali."*
+   → AI collects name + consultation type, shows a summary, asks *"Shall I book it?"*
+3. Reply **`yes`** → AI checks the slot, appends the row to the **Bookings** sheet, and
+   replies `✅ … CONFIRMED …`. No second phone needed.
+
+### 4b. Optional HITL (`REQUIRE_APPROVAL=true`, then restart uvicorn)
+
+1. Same as above, but after the customer says `yes` the AI replies that it's confirming
+   with the team.
+   → The **owner** phone gets: `🔔 New booking request #1 … Reply YES 1 / NO 1`.
+2. From the **owner** phone reply **`YES 1`**.
+   → The **customer** phone gets: `✅ … appointment … confirmed`.
+   (Reply `NO 1` instead → customer is offered the next open slots.)
+
+That's the full loop: real inbound → AI brain → (optional cross-channel human approval) → real reply.
 
 ---
 

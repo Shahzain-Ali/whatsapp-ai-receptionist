@@ -238,6 +238,8 @@ All values live in a **git-ignored** `whatsapp_fte/.env` (names only shown here)
 | `WHATSAPP_PHONE_NUMBER_ID` | The sending WhatsApp number's ID |
 | `WHATSAPP_BUSINESS_ACCOUNT_ID` | Meta WhatsApp Business account ID |
 | `WHATSAPP_VERIFY_TOKEN` | Secret echoed back during Meta's webhook handshake |
+| `GOOGLE_SA_KEY_PATH` | Path to the Google service-account JSON key (kept in `.secrets/`) — **required** |
+| `BOOKING_SHEET_ID` | The booking spreadsheet's id, taken from its URL — **required** |
 | `WHATSAPP_OWNER_NUMBER` | Owner number for HITL approval routing (HITL mode) |
 | `REQUIRE_APPROVAL` | `false` (default) = auto-confirm; `true` = owner-approval (HITL) |
 | `DEMO_CUSTOMER_PHONE` | A phone with a booking, used only to demo the guardrail in `adk web` |
