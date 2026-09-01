@@ -12,8 +12,10 @@ Run locally:
 
 Env used (names only; values live in whatsapp_fte/.env):
     WHATSAPP_VERIFY_TOKEN, WHATSAPP_OWNER_NUMBER (+ the client's ACCESS_TOKEN / PHONE_NUMBER_ID)
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT / _HEADERS  (optional — production tracing)
 """
 
+import contextlib
 import os
 import re
 import sys
@@ -27,10 +29,59 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 load_dotenv(os.path.join(_PROJECT_ROOT, "whatsapp_fte", ".env"))
 
+
+# ---------------------------------------------------------------------------
+# Production tracing (OpenTelemetry) — optional, opt-in, fail-safe
+# ---------------------------------------------------------------------------
+# ADK already instruments its Runner: it opens `invocation` -> `call_llm` ->
+# `execute_tool` spans carrying GenAI semantic-convention attributes (model,
+# input/output messages, tool definitions, token usage). Those spans exist on the
+# live webhook path too, but OTel drops them while no TracerProvider is registered
+# — which is why production has had no traces so far.
+#
+# `maybe_set_otel_providers()` registers one from the standard OTEL_* env vars.
+# We deliberately use the TRACES-specific endpoint variable: the generic
+# OTEL_EXPORTER_OTLP_ENDPOINT would also switch on the metrics and logs exporters,
+# which our backend does not take yet and which would then log errors on a loop.
+def _setup_tracing() -> bool:
+    """Register an OTel TracerProvider if an OTLP traces endpoint is configured."""
+    if not os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+        return False  # not configured -> behave exactly as before
+    try:
+        from google.adk.telemetry.setup import maybe_set_otel_providers
+
+        maybe_set_otel_providers()
+        return True
+    except Exception as e:  # never let telemetry take the webhook down
+        print(f"[telemetry] tracing setup FAILED, continuing without it: {e}", flush=True)
+        return False
+
+
+_TRACING_ENABLED = _setup_tracing()
+print(f"[telemetry] OTel tracing {'ENABLED' if _TRACING_ENABLED else 'disabled'}", flush=True)
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    yield
+    # Spans leave in batches, so flush before the process exits — otherwise the
+    # last conversation's trace is lost whenever the host restarts or sleeps.
+    if _TRACING_ENABLED:
+        try:
+            from opentelemetry import trace
+
+            provider = trace.get_tracer_provider()
+            if hasattr(provider, "shutdown"):
+                provider.shutdown()
+                print("[telemetry] spans flushed on shutdown", flush=True)
+        except Exception as e:
+            print(f"[telemetry] flush on shutdown failed: {e}", flush=True)
+
+
 from whatsapp_fte import availability, booking_store, sheets_client, whatsapp_client  # noqa: E402
 from whatsapp_webhook.agent_bridge import get_reply  # noqa: E402
 
-app = FastAPI(title="WhatsApp Digital FTE — Webhook")
+app = FastAPI(title="WhatsApp Digital FTE — Webhook", lifespan=_lifespan)
 
 # Message ids we've already handled (Meta can redeliver). Simple in-memory dedupe.
 _seen_ids: set[str] = set()
