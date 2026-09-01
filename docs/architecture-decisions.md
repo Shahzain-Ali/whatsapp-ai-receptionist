@@ -86,6 +86,12 @@ This makes the product scale without a human deciding preload-vs-RAG each time.
 
 ## 6. Security: Human-in-the-Loop (HITL)
 
+> **Status update (superseded in part, commit `733db6a`):** HITL is now **optional and OFF by
+> default**. The shipped default is `REQUIRE_APPROVAL=false` → the AI books end-to-end and
+> confirms the customer itself; set `REQUIRE_APPROVAL=true` to restore the owner-approval flow
+> described below (`whatsapp_fte/webhook_agent.py:40`). The slot check and the duplicate-booking
+> guardrail (#13) run in **both** modes, so booking safety is unchanged either way.
+
 **Scenario:** Should the agent send/act on everything automatically?
 
 **Decision:** **No.** Non-sensitive replies (fees, timings) go automatically; **sensitive actions** (booking, confirming, anything with a commitment) **pause for owner approval** (`request_confirmation` pattern).
